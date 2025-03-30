@@ -5,9 +5,9 @@
 <h1 align="center">IoC - 一个适用于Go的轻量级的依赖注入库</h1>
 
 <p align="center">
-  <a href="https://github.com/ricky/ioc/releases"><img src="https://img.shields.io/github/v/release/ricky/ioc?color=blue&sort=semver" alt="最新版本"></a>
-  <a href="https://pkg.go.dev/github.com/ricky/ioc"><img src="https://img.shields.io/badge/Go-1.18%2B-blue" alt="Go版本"></a>
-  <a href="https://github.com/ricky/ioc/blob/main/LICENSE"><img src="https://img.shields.io/github/license/ricky/ioc" alt="许可证"></a>
+  <a href="https://github.com/TickleLee/ioc/releases/tag/v0.0.2"><img src="https://img.shields.io/github/v/release/TickleLee/ioc?color=green&sort=semver" alt="最新版本"></a>
+  <a href="https://pkg.go.dev/github.com/TickleLee/ioc"><img src="https://img.shields.io/badge/Go-1.18+-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go Version"></a>
+  <a href="https://github.com/TickleLee/ioc/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="License"></a>
 </p>
 
 > 借鉴参考了 Goioc 库和 uber-go/dig 库
@@ -25,7 +25,7 @@
 ## 安装
 
 ```bash
-go get github.com/ricky/ioc
+go get github.com/TickleLee/ioc
 ```
 
 ## 使用方式
@@ -75,7 +75,7 @@ func (r *UserRepositoryImpl) FindById(id string) string {
 ```go
 package service
 
-import "github.com/ricky/ioc/pkg/ioc"
+import "github.com/TickleLee/ioc/pkg/ioc"
 
 func init() {
     // 注册仓储实现为单例
@@ -332,7 +332,7 @@ import (
     "fmt"
     "log"
     
-    "github.com/ricky/ioc/pkg/ioc"
+    "github.com/TickleLee/ioc/pkg/ioc"
     // 导入包含init()函数的包，确保依赖被注册
     _ "your-app/service"
     _ "your-app/repository"

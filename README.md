@@ -5,9 +5,9 @@
 <h1 align="center">IoC - A Lightweight Dependency Injection Library for Go</h1>
 
 <p align="center">
-  <a href="https://github.com/ricky/ioc/releases"><img src="https://img.shields.io/github/v/release/ricky/ioc?color=blue&sort=semver" alt="Latest Release"></a>
-  <a href="https://pkg.go.dev/github.com/ricky/ioc"><img src="https://img.shields.io/badge/Go-1.18%2B-blue" alt="Go Version"></a>
-  <a href="https://github.com/ricky/ioc/blob/main/LICENSE"><img src="https://img.shields.io/github/license/ricky/ioc" alt="License"></a>
+  <a href="https://github.com/TickleLee/ioc/releases/tag/v0.0.2"><img src="https://img.shields.io/github/v/release/TickleLee/ioc?color=green&sort=semver" alt="最新版本"></a>
+  <a href="https://pkg.go.dev/github.com/TickleLee/ioc"><img src="https://img.shields.io/badge/Go-1.18+-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go Version"></a>
+  <a href="https://github.com/TickleLee/ioc/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="License"></a>
 </p>
 
 > Inspired by Goioc library and uber-go/dig library
