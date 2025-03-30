@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/TickleLee/ioc/examples/examples/logger"
-	"github.com/TickleLee/ioc/examples/examples/modules/product"
-	"github.com/TickleLee/ioc/examples/examples/modules/quota"
+	"github.com/TickleLee/ioc/examples/cases/logger"
+	"github.com/TickleLee/ioc/examples/cases/modules/product"
+	"github.com/TickleLee/ioc/examples/cases/modules/quota"
 	"github.com/TickleLee/ioc/pkg/ioc"
 )
 

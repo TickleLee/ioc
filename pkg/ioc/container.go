@@ -69,6 +69,12 @@ type Container interface {
 	// 安全地获取依赖，返回错误而不是panic
 	GetSafe(name string) (interface{}, error)
 
+	// 获取所有注册的bean
+	GetAll() map[string]*BeanDefinition
+
+	// 获取所有注册的bean名称
+	GetAllNames() []string
+
 	// 注入依赖
 	Inject(instance interface{}) error
 
@@ -327,6 +333,20 @@ func (c *containerImpl) GetByType(typeName string, name string) interface{} {
 	// 多例创建新实例（简化处理，完整实现应该像Get方法一样）
 	newInstance := reflect.New(bean.Type.Elem()).Interface()
 	return newInstance
+}
+
+// GetAll 获取所有注册的bean
+func (c *containerImpl) GetAll() map[string]*BeanDefinition {
+	return c.beans
+}
+
+// GetAllNames 获取所有注册的bean名称
+func (c *containerImpl) GetAllNames() []string {
+	names := make([]string, 0, len(c.beans))
+	for name := range c.beans {
+		names = append(names, name)
+	}
+	return names
 }
 
 // Inject 注入依赖

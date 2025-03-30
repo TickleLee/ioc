@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/TickleLee/ioc/examples/examples/config"
-	"github.com/TickleLee/ioc/examples/examples/modules/product"
+	"github.com/TickleLee/ioc/examples/cases/config"
+	"github.com/TickleLee/ioc/examples/cases/modules/product"
 	"github.com/TickleLee/ioc/pkg/ioc"
 )
 

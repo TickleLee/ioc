@@ -283,12 +283,22 @@ func GetSafe(name string) (interface{}, error)
 // Get dependency by type
 func GetByType(typeName string, name string) interface{}
 
+// Get all registered beans
+func GetAll() map[string]*BeanDefinition
+
+// Get all registered bean names
+func GetAllNames() []string
+
 // Inject dependencies
 func Inject(instance interface{}) error
 
 // Initialize container
 func Init() error
 ```
+
+## Dependency Injection Details
+
+For detailed information about dependency injection, please refer to the [Inject.md](Inject.md) document.
 
 ## IoC Container Initialization
 

@@ -283,12 +283,22 @@ func GetSafe(name string) (interface{}, error)
 // 按类型获取依赖
 func GetByType(typeName string, name string) interface{}
 
+// 获取所有注册的bean
+func GetAll() map[string]*BeanDefinition
+
+// 获取所有注册的bean名称
+func GetAllNames() []string
+
 // 注入依赖
 func Inject(instance interface{}) error
 
 // 初始化容器
 func Init() error
 ```
+
+## 依赖注入详解
+
+关于依赖注入的详细信息，请参阅[Inject.md](Inject.md)文档。
 
 ## IoC容器初始化详解
 

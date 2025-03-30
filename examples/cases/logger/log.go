@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/TickleLee/ioc/examples/examples/config"
+	"github.com/TickleLee/ioc/examples/cases/config"
 	"github.com/TickleLee/ioc/pkg/ioc"
 )
 

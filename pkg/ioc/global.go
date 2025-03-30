@@ -50,6 +50,16 @@ func GetByType(typeName string, name string) interface{} {
 	return getDefaultContainer().GetByType(typeName, name)
 }
 
+// GetAll 获取所有注册的bean
+func GetAll() map[string]*BeanDefinition {
+	return getDefaultContainer().GetAll()
+}
+
+// GetAllNames 获取所有注册的bean名称
+func GetAllNames() []string {
+	return getDefaultContainer().GetAllNames()
+}
+
 // Inject 注入依赖到指定实例
 func Inject(instance interface{}) error {
 	return getDefaultContainer().Inject(instance)

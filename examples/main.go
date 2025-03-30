@@ -4,20 +4,20 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/TickleLee/ioc/examples/examples/modules/product"
+	"github.com/TickleLee/ioc/examples/cases/modules/product"
 	"github.com/TickleLee/ioc/pkg/ioc"
 
 	// 注册配置模块
-	_ "github.com/TickleLee/ioc/examples/examples/config"
+	_ "github.com/TickleLee/ioc/examples/cases/config"
 
 	// 注册日志模块
-	_ "github.com/TickleLee/ioc/examples/examples/logger"
+	_ "github.com/TickleLee/ioc/examples/cases/logger"
 
 	// 注册产品模块
-	_ "github.com/TickleLee/ioc/examples/examples/modules/product/impl"
+	_ "github.com/TickleLee/ioc/examples/cases/modules/product/impl"
 
 	// 注册配额模块
-	_ "github.com/TickleLee/ioc/examples/examples/modules/quota/impl"
+	_ "github.com/TickleLee/ioc/examples/cases/modules/quota/impl"
 )
 
 func main() {

@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.0.2
+
+### 🚀 Enhancements
+
+- Added `GetAll()` method to retrieve all registered beans
+- Added `GetAllNames()` method to retrieve all registered bean names
+- Added comprehensive test cases in `container_test.go`
+- Improved naming conventions in test cases
+- Updated documentation with new method descriptions
+- Added link to detailed injection documentation (Inject.md)
+
 ## v0.0.1 (2025-03-30)
 
 ### 🎉 First Release
