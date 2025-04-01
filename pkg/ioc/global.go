@@ -30,6 +30,11 @@ func RegisterType(typeName string, instance interface{}) error {
 	return getDefaultContainer().RegisterType(typeName, instance)
 }
 
+// RegisterTypeWithName 按类型和名称注册依赖到默认容器
+func RegisterTypeWithName(typeName string, name string, instance interface{}) error {
+	return getDefaultContainer().RegisterTypeWithName(typeName, name, instance)
+}
+
 // RegisterFactory 注册依赖工厂到默认容器
 func RegisterFactory(name string, scope Scope, factory func() (interface{}, error)) error {
 	return getDefaultContainer().RegisterFactory(name, scope, factory)
