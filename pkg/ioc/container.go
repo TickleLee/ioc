@@ -57,6 +57,9 @@ type Container interface {
 	// 按类型注册依赖
 	RegisterType(typeName string, instance interface{}) error
 
+	// 按类型注册依赖,支持配置名字
+	RegisterTypeWithName(typeName string, name string, instance interface{}) error
+
 	// 注册依赖工厂
 	RegisterFactory(name string, scope Scope, factory func() (interface{}, error)) error
 
@@ -198,6 +201,62 @@ func (c *containerImpl) RegisterType(typeName string, instance interface{}) erro
 		c.typeRegistry[typeName] = make(map[string]*BeanDefinition)
 	}
 	c.typeRegistry[typeName][shortTypeName] = bean
+
+	return nil
+}
+
+// RegisterTypeWithName 按类型注册依赖,支持配置名字
+func (c *containerImpl) RegisterTypeWithName(typeName string, name string, instance interface{}) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.initialized {
+		return errors.New("cannot register beans after container initialization")
+	}
+
+	if instance == nil {
+		return errors.New("cannot register nil instance")
+	}
+
+	// 获取实例的类型
+	t := reflect.TypeOf(instance)
+
+	// 如果是指针，获取指向的元素类型
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	// 为确保唯一性，生成bean名称
+	beanName := typeName + ":" + name
+
+	// 创建bean定义
+	bean := &BeanDefinition{
+		Name:     beanName,
+		TypeName: typeName,
+		Type:     t,
+		Instance: instance,
+		Scope:    Singleton, // 默认为单例
+	}
+
+	// 检查是否已存在同名bean
+	if _, exists := c.beans[beanName]; exists {
+		return fmt.Errorf("bean with name '%s' already exists", beanName)
+	}
+
+	// 注册到总表
+	c.beans[beanName] = bean
+
+	// 注册到类型表
+	if _, exists := c.typeRegistry[typeName]; !exists {
+		c.typeRegistry[typeName] = make(map[string]*BeanDefinition)
+	}
+
+	// 检查是否已存在同名bean
+	if _, exists := c.typeRegistry[typeName][name]; exists {
+		return fmt.Errorf("type '%s' already has a bean with name '%s'", typeName, name)
+	}
+
+	c.typeRegistry[typeName][name] = bean
 
 	return nil
 }

@@ -25,7 +25,7 @@
 ## Installation
 
 ```bash
-go get github.com/ricky/ioc
+go get github.com/TickleLee/ioc
 ```
 
 ## Usage
@@ -228,6 +228,9 @@ type Container interface {
     
     // Register dependency by type
     RegisterType(typeName string, instance interface{}) error
+
+    // 按类型注册依赖,支持配置名字
+	RegisterTypeWithName(typeName string, name string, instance interface{}) error
     
     // Register dependency factory
     RegisterFactory(name string, scope Scope, factory func() (interface{}, error)) error

@@ -63,6 +63,28 @@ func TestContainer_RegisterType_BYGet(t *testing.T) {
 	t.Log(productService.GetProduct("123"))
 }
 
+func TestContainer_RegisterTypeWithName(t *testing.T) {
+	container := ioc.NewContainer()
+	container.RegisterTypeWithName("Service", "productService", &ProductServiceImpl{})
+
+	container.Init()
+
+	productService := container.GetByType("Service", "productService").(ProductService)
+
+	t.Log(productService.GetProduct("123"))
+}
+
+func TestContainer_RegisterTypeWithName_BYGet(t *testing.T) {
+	container := ioc.NewContainer()
+	container.RegisterTypeWithName("Service", "productService", &ProductServiceImpl{})
+
+	container.Init()
+
+	productService := container.Get("Service:productService").(ProductService)
+
+	t.Log(productService.GetProduct("123"))
+}
+
 func TestContainer_RegisterFactory(t *testing.T) {
 	container := ioc.NewContainer()
 	container.RegisterFactory("productService", ioc.Singleton, func() (interface{}, error) {

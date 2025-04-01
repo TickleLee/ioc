@@ -271,6 +271,9 @@ func Register(name string, instance interface{}, scope Scope) error
 // 按类型注册依赖
 func RegisterType(typeName string, instance interface{}) error
 
+// 按类型注册依赖,支持配置名字
+RegisterTypeWithName(typeName string, name string, instance interface{}) error
+
 // 注册依赖工厂
 func RegisterFactory(name string, scope Scope, factory func() (interface{}, error)) error
 

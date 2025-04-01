@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.0.3
+
+### 🚀 Enhancements
+
+- Added `RegisterTypeWithName()` method to register beans with custom type name and bean name
+  - Supports developers to specify both type name and bean name simultaneously, providing a more flexible registration method
+  - Facilitates precise retrieval through the combination of type and name
+  - Addresses the management of multiple beans of the same type
+
 ## v0.0.2
 
 ### 🚀 Enhancements
