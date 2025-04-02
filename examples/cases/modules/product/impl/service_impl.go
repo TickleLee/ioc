@@ -14,12 +14,13 @@ import (
 // ProductServiceImpl 产品服务实现
 type ProductServiceImpl struct {
 	Repo     product.ProductRepository `inject:"productRepository"`
-	QuotaSvc quota.QuotaService        `inject:"quotaService"`
+	QuotaSvc quota.QuotaService        // 这里演示从 PostConstruct 方法中获取依赖
 	Logger   logger.LogService         `inject:"logService"`
 }
 
 func (s *ProductServiceImpl) PostConstruct() error {
 	fmt.Println("初始化 ProductService")
+	s.QuotaSvc = ioc.Get("quotaService").(quota.QuotaService)
 	return nil
 }
 
