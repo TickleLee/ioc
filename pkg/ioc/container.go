@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+
+	"go.uber.org/zap"
 )
 
 // 引入本地types包的Scope类型
@@ -17,6 +19,18 @@ const (
 
 	// Prototype 表示多例模式，每次获取依赖时创建新实例
 	Prototype
+)
+
+// 添加初始化阶段常量
+const (
+	// NotInitialized 表示容器尚未初始化
+	NotInitialized = iota
+	// InjectionPhase 表示正在进行依赖注入阶段
+	InjectionPhase
+	// PostConstructPhase 表示正在执行PostConstruct方法阶段
+	PostConstructPhase
+	// Initialized 表示容器已完全初始化
+	Initialized
 )
 
 // BeanDefinition 表示容器中注册的对象定义
@@ -41,6 +55,12 @@ type BeanDefinition struct {
 
 	// 工厂函数，用于创建对象实例
 	Factory func() (interface{}, error)
+
+	// 是否已完成依赖注入
+	injected bool
+
+	// 是否已执行PostConstruct
+	initialized bool
 }
 
 // InitializingBean 接口定义了对象初始化的方法
@@ -101,14 +121,27 @@ type containerImpl struct {
 
 	// 用于检测初始化过程中的循环依赖
 	initializing map[string]bool
+
+	// 容器当前所处的初始化阶段
+	currentPhase int
+
+	// 日志记录器
+	logger Logger
 }
 
 // 创建新的容器实例
 func NewContainer() Container {
+	// 确保日志系统已初始化
+	logger := GetLogger()
+
+	logger.Debug("创建新的IoC容器实例")
+
 	return &containerImpl{
 		beans:        make(map[string]*BeanDefinition),
 		typeRegistry: make(map[string]map[string]*BeanDefinition),
 		initializing: make(map[string]bool),
+		currentPhase: NotInitialized,
+		logger:       logger,
 	}
 }
 
@@ -118,10 +151,14 @@ func (c *containerImpl) Register(name string, instance interface{}, scope Scope)
 	defer c.mu.Unlock()
 
 	if c.initialized {
+		c.logger.Error("容器已初始化，无法注册新的bean",
+			zap.String("beanName", name))
 		return errors.New("cannot register beans after container initialization")
 	}
 
 	if instance == nil {
+		c.logger.Error("无法注册空实例",
+			zap.String("beanName", name))
 		return errors.New("cannot register nil instance")
 	}
 
@@ -138,10 +175,16 @@ func (c *containerImpl) Register(name string, instance interface{}, scope Scope)
 
 	// 检查是否已存在同名bean
 	if _, exists := c.beans[name]; exists {
+		c.logger.Error("bean名称已存在",
+			zap.String("beanName", name))
 		return fmt.Errorf("bean with name '%s' already exists", name)
 	}
 
 	c.beans[name] = bean
+	c.logger.Debug("成功注册bean",
+		zap.String("beanName", name),
+		zap.String("type", t.String()),
+		zap.Int("scope", scope))
 	return nil
 }
 
@@ -294,8 +337,12 @@ func (c *containerImpl) RegisterFactory(name string, scope Scope, factory func()
 func (c *containerImpl) Get(name string) interface{} {
 	instance, err := c.GetSafe(name)
 	if err != nil {
+		c.logger.Error("获取bean失败",
+			zap.String("beanName", name),
+			zap.Error(err))
 		panic(err)
 	}
+	c.logger.Debug("获取bean成功", zap.String("beanName", name))
 	return instance
 }
 
@@ -303,63 +350,106 @@ func (c *containerImpl) Get(name string) interface{} {
 func (c *containerImpl) GetSafe(name string) (interface{}, error) {
 	c.mu.RLock()
 
-	// 检查容器是否已初始化
-	if !c.initialized {
-		c.mu.RUnlock()
-		return nil, errors.New("container not initialized, call Init() first")
-	}
-
 	// 获取bean定义
 	bean, exists := c.beans[name]
-	c.mu.RUnlock()
-
 	if !exists {
+		c.mu.RUnlock()
+		c.logger.Error("找不到bean", zap.String("beanName", name))
 		return nil, fmt.Errorf("bean with name '%s' not found", name)
 	}
 
-	// 对于单例，直接返回实例
-	if bean.Scope == Singleton {
-		return bean.Instance, nil
-	}
+	// 根据当前阶段进行不同处理
+	switch c.currentPhase {
+	case NotInitialized:
+		// 容器尚未初始化
+		c.mu.RUnlock()
+		c.logger.Error("容器尚未初始化", zap.String("beanName", name))
+		return nil, errors.New("container not initialized, call Init() first")
 
-	// 对于多例，使用工厂创建新实例
-	if bean.Factory != nil {
-		instance, err := bean.Factory()
-		if err != nil {
-			return nil, fmt.Errorf("error creating instance for bean '%s': %w", name, err)
-		}
-
-		// 对新创建的实例进行依赖注入
-		if err := c.Inject(instance); err != nil {
-			return nil, fmt.Errorf("error injecting dependencies for bean '%s': %w", name, err)
-		}
-
-		// 调用初始化方法
-		if initializer, ok := instance.(InitializingBean); ok {
-			if err := initializer.PostConstruct(); err != nil {
-				return nil, fmt.Errorf("error initializing bean '%s': %w", name, err)
+	case InjectionPhase:
+		// 注入阶段 - 只返回已存在的实例
+		if bean.Instance == nil {
+			c.mu.RUnlock()
+			// 如果在注入阶段获取尚未初始化的bean，可能导致循环依赖
+			if c.initializing[name] {
+				c.logger.Error("检测到循环依赖", zap.String("beanName", name))
+				return nil, fmt.Errorf("circular dependency detected for bean: %s", name)
 			}
+
+			// 尝试初始化该bean
+			c.logger.Debug("尝试初始化bean", zap.String("beanName", name))
+			c.mu.RUnlock()
+			c.mu.Lock()
+			defer c.mu.Unlock()
+
+			if err := c.createBeanInstance(name, bean); err != nil {
+				c.logger.Error("创建bean实例失败",
+					zap.String("beanName", name),
+					zap.Error(err))
+				return nil, err
+			}
+			if err := c.injectBeanDependencies(name, bean); err != nil {
+				c.logger.Error("注入bean依赖失败",
+					zap.String("beanName", name),
+					zap.Error(err))
+				return nil, err
+			}
+
+			c.logger.Debug("bean初始化成功", zap.String("beanName", name))
+			return bean.Instance, nil
+		}
+		instance := bean.Instance
+		c.mu.RUnlock()
+		return instance, nil
+
+	case PostConstructPhase, Initialized:
+		// PostConstruct阶段或已初始化 - 正常返回实例
+		if bean.Scope == Singleton {
+			instance := bean.Instance
+			c.mu.RUnlock()
+			return instance, nil
 		}
 
-		return instance, nil
+		// 对于Prototype，创建新实例
+		c.mu.RUnlock()
+		return c.createPrototypeInstance(bean)
 	}
 
-	// 创建对象的新实例
-	newInstance := reflect.New(bean.Type.Elem()).Interface()
+	c.mu.RUnlock()
+	c.logger.Error("未知的容器状态",
+		zap.String("beanName", name),
+		zap.Int("phase", c.currentPhase))
+	return nil, errors.New("unknown container state")
+}
 
-	// 对新创建的实例进行依赖注入
-	if err := c.Inject(newInstance); err != nil {
-		return nil, fmt.Errorf("error injecting dependencies for bean '%s': %w", name, err)
+// 创建Prototype类型的bean实例
+func (c *containerImpl) createPrototypeInstance(bean *BeanDefinition) (interface{}, error) {
+	var instance interface{}
+	var err error
+
+	// 使用工厂函数或创建新实例
+	if bean.Factory != nil {
+		instance, err = bean.Factory()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		instance = reflect.New(bean.Type.Elem()).Interface()
+	}
+
+	// 注入依赖
+	if err := c.Inject(instance); err != nil {
+		return nil, err
 	}
 
 	// 调用初始化方法
-	if initializer, ok := newInstance.(InitializingBean); ok {
+	if initializer, ok := instance.(InitializingBean); ok {
 		if err := initializer.PostConstruct(); err != nil {
-			return nil, fmt.Errorf("error initializing bean '%s': %w", name, err)
+			return nil, err
 		}
 	}
 
-	return newInstance, nil
+	return instance, nil
 }
 
 // GetByType 按类型获取依赖
@@ -368,7 +458,7 @@ func (c *containerImpl) GetByType(typeName string, name string) interface{} {
 	defer c.mu.RUnlock()
 
 	// 检查容器是否已初始化
-	if !c.initialized {
+	if c.currentPhase == NotInitialized {
 		panic("container not initialized, call Init() first")
 	}
 
@@ -514,42 +604,100 @@ func (c *containerImpl) findCandidateByType(t reflect.Type) (interface{}, error)
 	return c.Get(candidates[0]), nil
 }
 
-// Init 初始化容器
+// Init 实现两阶段初始化
 func (c *containerImpl) Init() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if c.initialized {
+		c.logger.Warn("容器已经初始化，无需再次初始化")
 		return errors.New("container already initialized")
 	}
 
-	// 初始化所有单例bean
+	c.logger.Info("开始初始化IoC容器", zap.Int("beanCount", len(c.beans)))
+
+	// 第一阶段：依赖注入
+	c.logger.Info("进入第一阶段：依赖注入")
+	c.currentPhase = InjectionPhase
+
+	// 先为所有单例bean创建实例
+	c.logger.Debug("开始创建所有单例bean实例")
 	for name, bean := range c.beans {
 		if bean.Scope == Singleton {
-			if err := c.initBean(name, bean); err != nil {
+			if err := c.createBeanInstance(name, bean); err != nil {
+				c.logger.Error("创建bean实例失败",
+					zap.String("beanName", name),
+					zap.Error(err))
 				return err
 			}
 		}
 	}
 
+	// 然后为所有单例bean注入依赖
+	c.logger.Debug("开始为所有单例bean注入依赖")
+	for name, bean := range c.beans {
+		if bean.Scope == Singleton {
+			if err := c.injectBeanDependencies(name, bean); err != nil {
+				c.logger.Error("注入bean依赖失败",
+					zap.String("beanName", name),
+					zap.Error(err))
+				return err
+			}
+		}
+	}
+
+	// 第二阶段：调用所有PostConstruct方法
+	c.logger.Info("进入第二阶段：初始化")
+	c.currentPhase = PostConstructPhase
+	for name, bean := range c.beans {
+		if bean.Scope == Singleton {
+			if err := c.initializeBean(name, bean); err != nil {
+				c.logger.Error("初始化bean失败",
+					zap.String("beanName", name),
+					zap.Error(err))
+				return err
+			}
+		}
+	}
+
+	// 标记初始化完成
 	c.initialized = true
+	c.currentPhase = Initialized
+	c.logger.Info("IoC容器初始化完成",
+		zap.Int("beanCount", len(c.beans)))
 	return nil
 }
 
-// 初始化单个bean
-func (c *containerImpl) initBean(name string, bean *BeanDefinition) error {
+// 创建bean实例
+func (c *containerImpl) createBeanInstance(name string, bean *BeanDefinition) error {
+	// 如果已经有实例，跳过
+	if bean.Instance != nil {
+		c.logger.Debug("bean实例已存在，跳过创建",
+			zap.String("beanName", name))
+		return nil
+	}
+
 	// 检测循环依赖
 	if c.initializing[name] {
+		c.logger.Error("检测到循环依赖",
+			zap.String("beanName", name))
 		return fmt.Errorf("circular dependency detected for bean: %s", name)
 	}
 
+	c.logger.Debug("开始创建bean实例",
+		zap.String("beanName", name))
 	c.initializing[name] = true
 	defer delete(c.initializing, name)
 
 	// 如果是工厂方法，调用它创建实例
 	if bean.Factory != nil {
+		c.logger.Debug("使用工厂方法创建bean实例",
+			zap.String("beanName", name))
 		instance, err := bean.Factory()
 		if err != nil {
+			c.logger.Error("工厂方法创建实例失败",
+				zap.String("beanName", name),
+				zap.Error(err))
 			return fmt.Errorf("error creating instance for bean '%s': %w", name, err)
 		}
 		bean.Instance = instance
@@ -557,7 +705,25 @@ func (c *containerImpl) initBean(name string, bean *BeanDefinition) error {
 		// 获取实例的类型
 		t := reflect.TypeOf(instance)
 		bean.Type = t
+		c.logger.Debug("成功创建bean实例",
+			zap.String("beanName", name),
+			zap.String("type", t.String()))
 	}
+
+	return nil
+}
+
+// 注入bean依赖
+func (c *containerImpl) injectBeanDependencies(name string, bean *BeanDefinition) error {
+	// 如果已经注入过，跳过
+	if bean.injected {
+		c.logger.Debug("bean已注入依赖，跳过注入",
+			zap.String("beanName", name))
+		return nil
+	}
+
+	c.logger.Debug("开始为bean注入依赖",
+		zap.String("beanName", name))
 
 	// 临时释放锁，避免在注入过程中发生死锁
 	c.mu.Unlock()
@@ -569,16 +735,70 @@ func (c *containerImpl) initBean(name string, bean *BeanDefinition) error {
 	c.mu.Lock()
 
 	if err != nil {
+		c.logger.Error("注入依赖失败",
+			zap.String("beanName", name),
+			zap.Error(err))
 		return fmt.Errorf("error injecting dependencies for bean '%s': %w", name, err)
 	}
 
-	// 调用初始化方法
-	if initializer, ok := bean.Instance.(InitializingBean); ok {
-		if err := initializer.PostConstruct(); err != nil {
-			return fmt.Errorf("error initializing bean '%s': %w", name, err)
+	// 标记为已注入
+	bean.injected = true
+	c.logger.Debug("成功为bean注入依赖",
+		zap.String("beanName", name))
+	return nil
+}
+
+// 初始化bean
+func (c *containerImpl) initializeBean(name string, bean *BeanDefinition) error {
+	// 如果已经初始化过，跳过
+	if bean.initialized {
+		c.logger.Debug("bean已初始化，跳过",
+			zap.String("beanName", name))
+		return nil
+	}
+
+	// 确保已经注入了依赖
+	if !bean.injected {
+		c.logger.Debug("bean尚未注入依赖，先注入依赖",
+			zap.String("beanName", name))
+		if err := c.injectBeanDependencies(name, bean); err != nil {
+			return err
 		}
 	}
 
+	// 检查是否实现了InitializingBean接口
+	initializer, ok := bean.Instance.(InitializingBean)
+	if !ok {
+		// 未实现接口，标记为已初始化并返回
+		c.logger.Debug("bean未实现InitializingBean接口，跳过PostConstruct",
+			zap.String("beanName", name))
+		bean.initialized = true
+		return nil
+	}
+
+	c.logger.Debug("调用bean的PostConstruct方法",
+		zap.String("beanName", name))
+
+	// 临时释放锁，避免在PostConstruct过程中发生死锁
+	c.mu.Unlock()
+
+	// 调用PostConstruct方法
+	err := initializer.PostConstruct()
+
+	// 重新获取锁
+	c.mu.Lock()
+
+	if err != nil {
+		c.logger.Error("PostConstruct方法执行失败",
+			zap.String("beanName", name),
+			zap.Error(err))
+		return fmt.Errorf("error initializing bean '%s': %w", name, err)
+	}
+
+	// 标记为已初始化
+	bean.initialized = true
+	c.logger.Debug("bean初始化完成",
+		zap.String("beanName", name))
 	return nil
 }
 
@@ -632,6 +852,19 @@ func (c *containerImpl) injectDuringInit(instance interface{}) error {
 					continue
 				}
 				return fmt.Errorf("bean with name '%s' not found", injectTag)
+			}
+
+			// 如果bean实例尚未创建，则创建它
+			if beanDef.Instance == nil {
+				c.mu.Lock()
+				if err := c.createBeanInstance(injectTag, beanDef); err != nil {
+					c.mu.Unlock()
+					if optional {
+						continue
+					}
+					return err
+				}
+				c.mu.Unlock()
 			}
 
 			bean = beanDef.Instance

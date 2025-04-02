@@ -10,6 +10,9 @@ var (
 
 	// 保证全局容器只初始化一次的锁
 	once sync.Once
+
+	// 保证日志只配置一次的锁
+	loggerOnceGlobal sync.Once
 )
 
 // 获取默认的容器实例
@@ -73,4 +76,34 @@ func Inject(instance interface{}) error {
 // Init 初始化默认容器
 func Init() error {
 	return getDefaultContainer().Init()
+}
+
+// ConfigureLogging 配置IoC容器的日志系统
+// 必须在所有其他操作之前调用
+func ConfigureLogging(config LoggerConfig) {
+	loggerOnceGlobal.Do(func() {
+		ConfigureLogger(config)
+	})
+}
+
+// EnableDebugLogging 启用调试级别日志
+// 方便快速开启调试模式
+func EnableDebugLogging() {
+	loggerOnceGlobal.Do(func() {
+		ConfigureLogger(LoggerConfig{
+			Level:         DebugLevel,
+			EnableJSON:    false,
+			OutputFile:    false,
+			FilePath:      "./logs/ioc.log",
+			OutputConsole: true,
+			EnableCaller:  true,
+			Development:   true,
+		})
+	})
+}
+
+// GetContainerLogger 获取IoC容器的日志记录器
+// 可用于在应用程序中记录与IoC相关的日志
+func GetContainerLogger() Logger {
+	return GetLogger()
 }
